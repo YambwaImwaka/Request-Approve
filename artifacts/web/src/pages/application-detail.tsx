@@ -1,30 +1,46 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { 
-  useGetApplication, 
-  useSubmitApplication, 
-  useStartReview, 
-  useApproveApplication, 
-  useRejectApplication, 
+import {
+  useGetApplication,
+  useSubmitApplication,
+  useStartReview,
+  useApproveApplication,
+  useRejectApplication,
   useRequestChanges,
   getGetApplicationQueryKey,
   getListApplicationsQueryKey,
   getGetApplicationStatsQueryKey,
   ApplicationStatus,
-  UserRole
+  UserRole,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2, Send, CheckCircle, XCircle, Clock, AlertCircle, Edit, FileText, User as UserIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Send,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Edit,
+  FileText,
+  User as UserIcon,
+  Clock,
+  RotateCcw,
+} from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -32,16 +48,16 @@ export default function ApplicationDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  const [comment, setComment] = useState("");
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
-  const [isRequestChangesDialogOpen, setIsRequestChangesDialogOpen] = useState(false);
 
-  const { data: app, isLoading } = useGetApplication(applicationId, {
+  const [comment, setComment] = useState("");
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const { data: app, isLoading, refetch } = useGetApplication(applicationId, {
     query: {
-      enabled: !!applicationId,
-      queryKey: getGetApplicationQueryKey(applicationId)
-    }
+      enabled: !!applicationId && !isNaN(applicationId),
+      queryKey: getGetApplicationQueryKey(applicationId),
+      refetchOnWindowFocus: true,
+    },
   });
 
   const submitMutation = useSubmitApplication();
@@ -53,34 +69,138 @@ export default function ApplicationDetail() {
   const isApplicant = user?.role === UserRole.APPLICANT;
   const isReviewer = user?.role === UserRole.REVIEWER;
 
-  const handleAction = (
-    actionName: string, 
-    mutation: any, 
-    data: any = undefined, 
-    onSuccessCb?: () => void
+  const isWorking =
+    submitMutation.isPending ||
+    startReviewMutation.isPending ||
+    approveMutation.isPending ||
+    rejectMutation.isPending ||
+    requestChangesMutation.isPending;
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: getGetApplicationQueryKey(applicationId) });
+    queryClient.invalidateQueries({ queryKey: getListApplicationsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetApplicationStatsQueryKey() });
+    // Force immediate refetch of this application to show updated audit trail
+    refetch();
+  };
+
+  const showError = (err: unknown, fallback: string) => {
+    const e = err as { data?: { message?: string }; message?: string } | null;
+    const message = e?.data?.message ?? e?.message ?? fallback;
+    toast({ title: "Action Failed", description: message, variant: "destructive" });
+  };
+
+  /** 
+   * Run a reviewer action. If the application is still SUBMITTED, 
+   * automatically starts the review first, then performs the action.
+   */
+  const runReviewerAction = (
+    actionLabel: string,
+    run: () => void,
   ) => {
-    const payload = data !== undefined ? { id: applicationId, data } : { id: applicationId };
-    
-    mutation.mutate(payload, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetApplicationQueryKey(applicationId) });
-        queryClient.invalidateQueries({ queryKey: getListApplicationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetApplicationStatsQueryKey() });
-        toast({
-          title: "Success",
-          description: `Application ${actionName.toLowerCase()} successfully.`,
-        });
-        setComment("");
-        if (onSuccessCb) onSuccessCb();
-      },
-      onError: (err: any) => {
-        toast({
-          title: "Error",
-          description: err.message || `Failed to ${actionName.toLowerCase()} application.`,
-          variant: "destructive",
-        });
-      }
+    if (!app) return;
+
+    if (app.status === ApplicationStatus.SUBMITTED) {
+      // Must start review first, then immediately perform the action
+      setPendingAction(actionLabel);
+      startReviewMutation.mutate(
+        { id: applicationId },
+        {
+          onSuccess: () => {
+            run();
+          },
+          onError: (err) => {
+            setPendingAction(null);
+            showError(err, "Failed to start review");
+          },
+        },
+      );
+    } else {
+      run();
+    }
+  };
+
+  const handleApprove = () => {
+    runReviewerAction("Approving", () => {
+      approveMutation.mutate(
+        { id: applicationId, data: comment.trim() ? { comment: comment.trim() } : undefined },
+        {
+          onSuccess: () => {
+            setPendingAction(null);
+            setComment("");
+            invalidateAll();
+            toast({ title: "Approved", description: "The application has been approved." });
+          },
+          onError: (err) => {
+            setPendingAction(null);
+            showError(err, "Failed to approve application");
+          },
+        },
+      );
     });
+  };
+
+  const handleReject = () => {
+    if (!comment.trim()) {
+      toast({ title: "Comment required", description: "Please provide a reason for rejection.", variant: "destructive" });
+      return;
+    }
+    runReviewerAction("Rejecting", () => {
+      rejectMutation.mutate(
+        { id: applicationId, data: { comment: comment.trim() } },
+        {
+          onSuccess: () => {
+            setPendingAction(null);
+            setComment("");
+            invalidateAll();
+            toast({ title: "Rejected", description: "The application has been rejected." });
+          },
+          onError: (err) => {
+            setPendingAction(null);
+            showError(err, "Failed to reject application");
+          },
+        },
+      );
+    });
+  };
+
+  const handleRequestChanges = () => {
+    if (!comment.trim()) {
+      toast({ title: "Comment required", description: "Please describe the changes needed.", variant: "destructive" });
+      return;
+    }
+    runReviewerAction("Requesting changes", () => {
+      requestChangesMutation.mutate(
+        { id: applicationId, data: { comment: comment.trim() } },
+        {
+          onSuccess: () => {
+            setPendingAction(null);
+            setComment("");
+            invalidateAll();
+            toast({ title: "Changes Requested", description: "The application has been returned to the applicant." });
+          },
+          onError: (err) => {
+            setPendingAction(null);
+            showError(err, "Failed to request changes");
+          },
+        },
+      );
+    });
+  };
+
+  const handleSubmit = () => {
+    submitMutation.mutate(
+      { id: applicationId },
+      {
+        onSuccess: () => {
+          invalidateAll();
+          toast({ title: "Submitted", description: "Your application has been submitted for review." });
+        },
+        onError: (err) => {
+          showError(err, "Failed to submit application");
+        },
+      },
+    );
   };
 
   if (isLoading || !app) {
@@ -91,254 +211,301 @@ export default function ApplicationDetail() {
     );
   }
 
-  const isWorking = submitMutation.isPending || 
-                    startReviewMutation.isPending || 
-                    approveMutation.isPending || 
-                    rejectMutation.isPending || 
-                    requestChangesMutation.isPending;
+  const auditLog = app.auditLog ?? [];
+  const isReviewable =
+    isReviewer &&
+    (app.status === ApplicationStatus.SUBMITTED ||
+      app.status === ApplicationStatus.UNDER_REVIEW);
+
+  const isFinalState =
+    app.status === ApplicationStatus.APPROVED ||
+    app.status === ApplicationStatus.REJECTED;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
+      {/* Header */}
+      <div className="flex items-start gap-4">
         <Link href="/dashboard">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" className="mt-1 shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{app.companyName}</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight truncate">{app.companyName}</h1>
             <StatusBadge status={app.status} />
           </div>
-          <p className="text-muted-foreground mt-1">Registration: {app.registrationNumber}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Registration: <span className="font-mono">{app.registrationNumber}</span>
+            {app.user && <span className="ml-3">Submitted by: {app.user.email}</span>}
+          </p>
         </div>
         {isApplicant && app.status === ApplicationStatus.DRAFT && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <Link href={`/applications/${app.id}/edit`}>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2">
                 <Edit className="w-4 h-4" /> Edit
               </Button>
             </Link>
-            <Button 
-              onClick={() => handleAction("Submitted", submitMutation)}
+            <Button
+              onClick={handleSubmit}
               disabled={isWorking}
+              size="sm"
               className="gap-2"
             >
-              <Send className="w-4 h-4" /> Submit for Review
+              {submitMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Submit for Review
             </Button>
+          </div>
+        )}
+        {isApplicant && app.status === ApplicationStatus.CHANGES_REQUESTED && (
+          <div className="flex gap-2 shrink-0">
+            <Link href={`/applications/${app.id}/edit`}>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Edit className="w-4 h-4" /> Edit & Resubmit
+              </Button>
+            </Link>
           </div>
         )}
       </div>
 
-      {isReviewer && app.status === ApplicationStatus.SUBMITTED && (
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <div>
-                <h3 className="font-semibold text-blue-900">Ready for Review</h3>
-                <p className="text-sm text-blue-700">This request has been submitted and is waiting for a reviewer.</p>
-              </div>
-            </div>
-            <Button 
-              onClick={() => handleAction("Started Review", startReviewMutation)}
-              disabled={isWorking}
-            >
-              Start Review
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {isReviewer && app.status === ApplicationStatus.UNDER_REVIEW && (
-        <Card className="border-amber-200 shadow-md">
-          <CardHeader className="bg-amber-50/50 border-b border-amber-100">
-            <CardTitle className="text-amber-900 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" /> Review Actions
+      {/* ── REVIEWER ACTION PANEL ── */}
+      {isReviewable && (
+        <Card className="border-2 border-amber-300 shadow-md">
+          <CardHeader className="bg-amber-50 border-b border-amber-200 pb-4">
+            <CardTitle className="flex items-center gap-2 text-amber-900">
+              <AlertCircle className="w-5 h-5" />
+              Review this Request
             </CardTitle>
-            <CardDescription className="text-amber-800">
-              You are currently reviewing this application.
-            </CardDescription>
+            <p className="text-sm text-amber-800 mt-1">
+              {app.status === ApplicationStatus.SUBMITTED
+                ? "This request is awaiting review. Select an action below — it will automatically be moved to Under Review first."
+                : "You are actively reviewing this request. Select an outcome below."}
+            </p>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="comment">Reviewer Comment (required for rejection or changes)</Label>
-                <Textarea 
-                  id="comment"
-                  placeholder="Provide feedback to the applicant..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="min-h-[100px]"
-                />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Button 
-                  onClick={() => handleAction("Approved", approveMutation, { comment: comment || undefined })}
-                  disabled={isWorking}
-                  className="bg-green-600 hover:bg-green-700 text-white gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" /> Approve
-                </Button>
-                
-                <Dialog open={isRequestChangesDialogOpen} onOpenChange={setIsRequestChangesDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      className="border-orange-200 text-orange-700 hover:bg-orange-50 gap-2"
-                      disabled={!comment.trim() || isWorking}
-                    >
-                      <FileText className="w-4 h-4" /> Request Changes
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Request Changes</DialogTitle>
-                      <DialogDescription>
-                        This will send the application back to the applicant to address your comments.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="p-4 bg-muted/50 rounded-md text-sm border border-border">
-                      <strong>Your comment:</strong>
-                      <p className="mt-2 whitespace-pre-wrap">{comment}</p>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsRequestChangesDialogOpen(false)}>Cancel</Button>
-                      <Button 
-                        onClick={() => handleAction("Changes Requested", requestChangesMutation, { comment }, () => setIsRequestChangesDialogOpen(false))}
-                        className="bg-orange-600 hover:bg-orange-700 text-white"
-                      >
-                        Confirm Request Changes
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+          <CardContent className="pt-5 space-y-5">
+            {/* Comment field */}
+            <div className="space-y-2">
+              <Label htmlFor="reviewer-comment" className="text-sm font-semibold">
+                Reviewer Comment
+                <span className="ml-1 text-muted-foreground font-normal">
+                  (required for Reject and Request Changes)
+                </span>
+              </Label>
+              <Textarea
+                id="reviewer-comment"
+                placeholder="Provide feedback or reasoning for your decision..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="min-h-[110px] resize-y"
+                disabled={isWorking}
+              />
+            </div>
 
-                <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      className="border-red-200 text-red-700 hover:bg-red-50 gap-2"
-                      disabled={!comment.trim() || isWorking}
-                    >
-                      <XCircle className="w-4 h-4" /> Reject
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Reject Application</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to reject this application? This action cannot be easily undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="p-4 bg-muted/50 rounded-md text-sm border border-border">
-                      <strong>Your comment:</strong>
-                      <p className="mt-2 whitespace-pre-wrap">{comment}</p>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>Cancel</Button>
-                      <Button 
-                        onClick={() => handleAction("Rejected", rejectMutation, { comment }, () => setIsRejectDialogOpen(false))}
-                        variant="destructive"
-                      >
-                        Confirm Rejection
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Button
+                onClick={handleApprove}
+                disabled={isWorking}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2"
+              >
+                {(approveMutation.isPending || pendingAction === "Approving") ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                Approve
+              </Button>
+
+              <Button
+                onClick={handleRequestChanges}
+                disabled={isWorking || !comment.trim()}
+                variant="outline"
+                className="border-orange-300 text-orange-700 hover:bg-orange-50 gap-2"
+              >
+                {(requestChangesMutation.isPending || pendingAction === "Requesting changes") ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                Request Changes
+              </Button>
+
+              <Button
+                onClick={handleReject}
+                disabled={isWorking || !comment.trim()}
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50 gap-2"
+              >
+                {(rejectMutation.isPending || pendingAction === "Rejecting") ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <XCircle className="w-4 h-4" />
+                )}
+                Reject
+              </Button>
+            </div>
+
+            {!comment.trim() && (
+              <p className="text-xs text-muted-foreground">
+                Type a comment above to enable Reject and Request Changes.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Final state banner for reviewers */}
+      {isReviewer && isFinalState && (
+        <Card className={`border ${app.status === ApplicationStatus.APPROVED ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50"}`}>
+          <CardContent className="p-4 flex items-center gap-3">
+            {app.status === ApplicationStatus.APPROVED ? (
+              <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+            ) : (
+              <XCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
+            <p className={`text-sm font-medium ${app.status === ApplicationStatus.APPROVED ? "text-green-800" : "text-red-800"}`}>
+              This application was {app.status === ApplicationStatus.APPROVED ? "approved" : "rejected"}. No further action is required.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Applicant — changes requested banner */}
+      {isApplicant && app.status === ApplicationStatus.CHANGES_REQUESTED && (
+        <Card className="border-orange-200 bg-orange-50/60">
+          <CardContent className="p-4 flex items-start gap-3">
+            <RotateCcw className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-orange-900">Changes Requested</p>
+              <p className="text-sm text-orange-800 mt-1">
+                The reviewer has requested changes. Please review their feedback in the audit timeline below, then edit and resubmit.
+              </p>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Main content grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Application details — 2/3 width */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Application Details</CardTitle>
+              <CardTitle className="text-base">Application Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+              <div className="grid grid-cols-2 gap-y-5 gap-x-4">
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Company Name</h4>
-                  <p className="text-base">{app.companyName}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Company Name</p>
+                  <p className="text-sm font-medium">{app.companyName}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Registration Number</h4>
-                  <p className="text-base font-mono">{app.registrationNumber}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Registration Number</p>
+                  <p className="text-sm font-mono">{app.registrationNumber}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Beneficial Owner</h4>
-                  <p className="text-base">{app.beneficialOwnerName}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Beneficial Owner</p>
+                  <p className="text-sm font-medium">{app.beneficialOwnerName}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Ownership Percentage</h4>
-                  <p className="text-base font-mono">{app.ownershipPercentage}%</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Ownership Percentage</p>
+                  <p className="text-sm font-mono font-semibold">{app.ownershipPercentage}%</p>
                 </div>
               </div>
 
               <Separator />
 
               <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">Reason for Change</h4>
-                <div className="bg-muted/30 p-4 rounded-md border border-border">
-                  <p className="whitespace-pre-wrap text-sm">{app.changeReason}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reason for Change</p>
+                <div className="bg-muted/30 p-3 rounded-md border text-sm whitespace-pre-wrap">
+                  {app.changeReason}
                 </div>
               </div>
 
               {app.supportingNotes && (
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Supporting Notes</h4>
-                  <div className="bg-muted/30 p-4 rounded-md border border-border">
-                    <p className="whitespace-pre-wrap text-sm">{app.supportingNotes}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Supporting Notes</p>
+                  <div className="bg-muted/30 p-3 rounded-md border text-sm whitespace-pre-wrap">
+                    {app.supportingNotes}
                   </div>
                 </div>
               )}
+
+              <div className="flex gap-6 pt-2 text-xs text-muted-foreground border-t">
+                <span>Created: {format(new Date(app.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                <span>Updated: {format(new Date(app.updatedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" /> Audit Timeline
+        {/* Audit timeline — 1/3 width */}
+        <div>
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="w-4 h-4" />
+                Audit Trail
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  {auditLog.length} {auditLog.length === 1 ? "entry" : "entries"}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {app.auditLog.map((log, index) => (
-                  <div key={log.id} className="relative pl-6 pb-2">
-                    {index !== app.auditLog.length - 1 && (
-                      <div className="absolute left-2 top-2 bottom-0 w-px bg-border -translate-x-1/2 translate-y-2"></div>
-                    )}
-                    <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-background bg-primary -translate-x-1/2"></div>
-                    
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">
-                          {log.previousStatus} → {log.newStatus}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(log.timestamp), "MMM d, h:mm a")}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <UserIcon className="w-3 h-3" />
-                        <span>{log.user?.email || `User ${log.userId}`} ({log.userRole})</span>
-                      </div>
-                      
-                      {log.comment && (
-                        <div className="mt-2 text-sm bg-muted p-2 rounded border border-border italic text-foreground/80">
-                          "{log.comment}"
-                        </div>
+              {auditLog.length === 0 ? (
+                <div className="text-center py-8 space-y-2">
+                  <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto" />
+                  <p className="text-sm text-muted-foreground">No activity yet.</p>
+                  {isApplicant && app.status === ApplicationStatus.DRAFT && (
+                    <p className="text-xs text-muted-foreground">
+                      Submit this request to begin the review process.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {auditLog.map((entry, index) => (
+                    <div key={entry.id} className="relative pl-5">
+                      {/* Connecting line */}
+                      {index < auditLog.length - 1 && (
+                        <div className="absolute left-[7px] top-4 bottom-0 w-px bg-border" />
                       )}
+                      {/* Dot */}
+                      <div className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-primary bg-background" />
+
+                      <div className="space-y-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs font-semibold leading-none">
+                            {entry.previousStatus} → {entry.newStatus}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(entry.timestamp), "MMM d, yyyy · h:mm a")}
+                        </p>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <UserIcon className="w-3 h-3 shrink-0" />
+                          <span className="truncate">
+                            {entry.user?.email ?? `User ${entry.userId}`}
+                          </span>
+                          <span className="shrink-0 px-1 py-0.5 bg-muted rounded text-[10px] uppercase tracking-wide font-medium">
+                            {entry.userRole}
+                          </span>
+                        </div>
+                        {entry.comment && (
+                          <blockquote className="mt-2 pl-2 border-l-2 border-muted-foreground/30 text-xs italic text-foreground/70">
+                            {entry.comment}
+                          </blockquote>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
