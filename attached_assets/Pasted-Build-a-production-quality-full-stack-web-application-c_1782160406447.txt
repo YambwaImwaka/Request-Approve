@@ -1,0 +1,277 @@
+Build a production-quality full-stack web application called "Beneficial Ownership Change Request Workflow System" that satisfies the requirements of a technical assessment for a Full-Stack Developer role.
+
+IMPORTANT:
+The goal is not to build many features. The goal is to demonstrate strong software engineering, backend architecture, authorization, testing, workflow enforcement, audit trails, and clean code.
+
+TECH STACK
+
+Frontend:
+
+- React
+- TypeScript
+- Vite
+- React Query
+- React Hook Form
+- Tailwind CSS
+
+Backend:
+
+- Node.js
+- TypeScript
+- Express or NestJS
+- Prisma ORM
+
+Database:
+
+- PostgreSQL
+
+Deployment:
+
+- Frontend deployable to Vercel
+- Backend deployable to Render
+- Database hosted on Neon
+
+Containerization:
+
+- Docker Compose setup for local development
+
+PROJECT CONTEXT
+
+Open Ownership works in beneficial ownership transparency.
+
+The application should simulate a beneficial ownership information update workflow.
+
+ROLES
+
+1. Applicant
+
+- Creates ownership change requests
+- Edits requests while in DRAFT status
+- Submits requests for review
+- Views request status
+- Views reviewer comments
+
+2. Reviewer
+
+- Reviews submitted requests
+- Approves requests
+- Rejects requests
+- Returns requests for changes
+- Must provide comments when rejecting or requesting changes
+
+AUTHENTICATION
+
+Implement seeded demo users.
+
+Applicant:
+email: applicant@example.com
+password: password123
+
+Reviewer:
+email: reviewer@example.com
+password: password123
+
+Role authorization must be enforced server-side.
+
+APPLICATION FORM
+
+Fields:
+
+- Company Name (required)
+- Registration Number (required)
+- Beneficial Owner Name (required)
+- Ownership Percentage (required, 0-100)
+- Change Reason (required)
+- Supporting Notes (optional)
+
+WORKFLOW STATE MACHINE
+
+Statuses:
+
+DRAFT
+SUBMITTED
+UNDER_REVIEW
+APPROVED
+REJECTED
+CHANGES_REQUESTED
+
+Rules:
+
+- Only the owner may edit a DRAFT
+- Applicant may submit only DRAFT applications
+- Applicant cannot edit once application leaves DRAFT
+- Only Reviewer can transition applications after submission
+- Reject requires comment
+- Request Changes requires comment
+- Illegal transitions return structured errors
+- Every transition must be audited
+
+Allowed transitions:
+
+DRAFT -> SUBMITTED
+
+SUBMITTED -> UNDER_REVIEW
+
+UNDER_REVIEW -> APPROVED
+UNDER_REVIEW -> REJECTED
+UNDER_REVIEW -> CHANGES_REQUESTED
+
+CHANGES_REQUESTED -> DRAFT
+DRAFT -> SUBMITTED
+
+AUDIT LOG
+
+Every workflow transition creates an audit record containing:
+
+- User ID
+- User role
+- Previous status
+- New status
+- Comment
+- Timestamp
+
+Display audit history in the application detail page.
+
+DATABASE DESIGN
+
+Create Prisma models for:
+
+User
+Application
+AuditLog
+
+Include relationships, migrations and seed data.
+
+API DESIGN
+
+REST API endpoints:
+
+POST /auth/login
+
+POST /applications
+GET /applications
+GET /applications/:id
+PATCH /applications/:id
+
+POST /applications/:id/submit
+POST /applications/:id/start-review
+POST /applications/:id/approve
+POST /applications/:id/reject
+POST /applications/:id/request-changes
+
+Use proper HTTP status codes.
+
+ERROR HANDLING
+
+Return structured JSON errors:
+
+{
+"success": false,
+"message": "Only reviewers may approve applications"
+}
+
+Handle:
+
+- Validation errors
+- Authorization errors
+- Not found errors
+- Illegal workflow transitions
+
+FRONTEND PAGES
+
+Login Page
+
+Applicant Dashboard
+
+- My applications
+- Status badges
+- Create request button
+
+Create/Edit Application Page
+
+Application Detail Page
+
+- Application information
+- Status
+- Reviewer comments
+- Audit timeline
+
+Reviewer Dashboard
+
+- Submitted queue
+- Filter by status
+- Open application
+
+Reviewer Detail Page
+
+- Approve button
+- Reject button
+- Request Changes button
+- Comment field
+
+UI REQUIREMENTS
+
+Handle:
+
+- Loading states
+- Error states
+- Success states
+- Form validation messages
+
+Keep design professional and minimal.
+
+TESTING
+
+Create comprehensive tests.
+
+Unit Tests:
+
+- Legal transitions
+- Illegal transitions
+- State machine validation
+
+Authorization Tests:
+
+- Applicant cannot approve
+- Reviewer cannot edit applicant drafts
+
+API Tests:
+
+- 403 forbidden responses
+- Validation failures
+- Workflow violations
+
+README REQUIREMENTS
+
+Generate a professional README including:
+
+- Architecture overview
+- Setup instructions
+- Docker instructions
+- Database schema explanation
+- API documentation
+- Testing instructions
+- Trade-offs made
+- Future improvements
+- AI tools used and how they were used
+
+BONUS
+
+Generate:
+
+- Clean folder structure
+- Meaningful commit suggestions
+- Seed script
+- Swagger/OpenAPI documentation
+
+CODE QUALITY REQUIREMENTS
+
+- SOLID principles where appropriate
+- Type-safe code
+- Reusable components
+- Clear separation of concerns
+- Clean architecture
+- Production-quality naming
+- No unnecessary complexity
+
+The final result should look like something an experienced intermediate full-stack engineer would submit for a hiring assessment and should prioritize correctness, authorization, testing, maintainability, and workflow integrity over visual complexity.
