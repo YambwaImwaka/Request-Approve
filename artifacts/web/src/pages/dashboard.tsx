@@ -97,7 +97,7 @@ export default function Dashboard() {
           {apps.map((app) => (
             <TableRow
               key={app.id}
-              className="hover:bg-muted/50 cursor-pointer transition-colors group"
+              className="hover:bg-muted/50 cursor-pointer transition-colors"
             >
               <TableCell className="font-medium">
                 <Link href={`/applications/${app.id}`}>{app.companyName}</Link>
@@ -120,16 +120,16 @@ export default function Dashboard() {
               <TableCell className="text-right">
                 <Link href={`/applications/${app.id}`}>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="gap-1 text-xs"
                   >
                     {isReviewer &&
                     (app.status === ApplicationStatus.SUBMITTED ||
                       app.status === ApplicationStatus.UNDER_REVIEW)
                       ? "Review"
-                      : "View"}{" "}
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                      : "View"}
+                    <ArrowRight className="w-3 h-3" />
                   </Button>
                 </Link>
               </TableCell>
