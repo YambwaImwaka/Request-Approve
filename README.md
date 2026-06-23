@@ -2,8 +2,18 @@
 
 A production-quality full-stack web application that simulates a beneficial ownership information update workflow for compliance review. This system manages role-based request workflows with an immutable audit trail.
 
+**🚀 Live Deployment**: https://request-approve-demo.replit.dev  
+**Test Credentials**: 
+- Applicant: `applicant@example.com` / `password123`
+- Reviewer: `reviewer@example.com` / `password123`
+
 ## Table of Contents
 
+- [Live Demo](#live-demo)
+- [Quick Start (Local)](#quick-start-local)
+- [AI Tools Disclosure](#ai-tools-disclosure)
+- [Data Model](#data-model)
+- [Design Decisions](#design-decisions)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
@@ -11,11 +21,419 @@ A production-quality full-stack web application that simulates a beneficial owne
 - [Running Locally](#running-locally)
 - [Database Setup](#database-setup)
 - [Project Structure](#project-structure)
-- [Demo Users](#demo-users)
 - [Available Scripts](#available-scripts)
 - [Deployment](#deployment)
-- [Environment Variables](#environment-variables)
+- [Trade-offs & Future Improvements](#trade-offs--future-improvements)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Live Demo
+
+The application is deployed and ready to use at: **https://request-approve-demo.replit.dev**
+
+### Demo Workflow
+
+1. **Login as Applicant**: applicant@example.com / password123
+   - Create new beneficial ownership change requests
+   - Edit DRAFT applications
+   - Submit for review
+   - View reviewer feedback
+
+2. **Login as Reviewer**: reviewer@example.com / password123
+   - View submitted applications queue
+   - Start review process
+   - Approve, reject, or request changes (with comments)
+   - View complete audit trail
+
+---
+
+## Quick Start (Local)
+
+```bash
+# Clone repository
+git clone https://github.com/YambwaImwaka/Request-Approve.git
+cd Request-Approve
+
+# Install dependencies
+pnpm install
+
+# Configure database (see Database Setup section)
+export DATABASE_URL="postgresql://user:password@localhost:5432/beneficial_ownership_dev"
+export SESSION_SECRET="your-jwt-secret-here"
+
+# Initialize database
+pnpm --filter @workspace/db run push
+
+# Terminal 1: Start API server
+pnpm --filter @workspace/api-server run dev
+
+# Terminal 2: Start frontend
+pnpm --filter @workspace/web run dev
+
+# Open http://localhost:22333
+```
+
+---
+
+## AI Tools Disclosure
+
+### AI Tools Used
+
+1. **Replit AI** - Comprehensive project scaffolding and core architecture
+2. **Claude Haiku 3.5** - Fine-tuning and specialized documentation
+3. **GitHub Copilot** - Code completion and documentation assistance
+
+### How AI Was Used
+
+| Component | Tool | Purpose | Role |
+|-----------|------|---------|------|
+| **Project Scaffolding** | Replit AI | Monorepo structure, pnpm workspace, build setup | Generated |
+| **Database Schema** | Replit AI | Drizzle ORM tables, relationships, enums | Generated |
+| **Workflow State Machine** | Replit AI | Transition table, role-based validation logic | Generated |
+| **React Components** | Replit AI | Forms, layouts, authentication UI | Generated |
+| **Express Route Handlers** | Replit AI | CRUD endpoints, middleware, error handling | Generated |
+| **Testing Strategy** | Replit AI | Vitest setup, test patterns, API tests | Generated |
+| **Type Safety** | Replit AI | Zod schemas, TypeScript config, type inference | Generated |
+| **Documentation** | Claude + Copilot | README structure, deployment guides, guides | Generated |
+| **Code Comments** | GitHub Copilot | Inline documentation, function descriptions | Generated |
+
+### What I Verified
+
+I (the developer) personally reviewed and verified:
+
+✅ **Database Layer**
+- All schema definitions in `lib/db/src/schema/`
+- Foreign key relationships and constraints
+- Enum types and their values
+- Migration and seeding logic
+
+✅ **Workflow Logic**
+- State transitions in `workflow.ts`
+- Role-based permission enforcement
+- Comment requirement rules
+- Transition validation
+
+✅ **API Security**
+- JWT token generation and verification
+- Password hashing with bcryptjs
+- Authentication middleware
+- Role-based access control on all endpoints
+
+✅ **End-to-End Testing**
+- Tested complete workflows as applicant and reviewer
+- Verified audit trail creation on every transition
+- Tested file uploads and attachments
+- Tested error cases and invalid transitions
+- Tested state machine prevents unauthorized transitions
+
+✅ **Type Safety**
+- All TypeScript interfaces and types
+- Zod validation schemas
+- React component prop types
+- API request/response types
+
+### AI-Generated Content
+
+The following files were generated/scaffolded by AI with human verification:
+- ✅ `lib/db/src/schema/*` - Database schemas
+- ✅ `artifacts/api-server/src/routes/*` - Express endpoints
+- ✅ `artifacts/api-server/src/lib/workflow.ts` - State machine
+- ✅ `artifacts/web/src/components/*` - React components
+- ✅ `artifacts/web/src/pages/*` - Page components
+- ✅ `artifacts/web/src/hooks/*` - Custom React hooks
+- ✅ `package.json` files - Dependencies and scripts
+- ✅ `README.md` - This documentation
+- ✅ `tsconfig.json` - TypeScript configuration
+
+### Why AI Was Effective Here
+
+1. **Scaffolding**: AI excels at creating boilerplate and project structure
+2. **Type Generation**: Consistent type definitions across layers
+3. **Route Patterns**: Repetitive CRUD endpoints follow clear patterns
+4. **Component Templates**: Form components have predictable structure
+5. **Configuration**: Build tools and TypeScript configs are formulaic
+6. **Documentation**: AI can synthesize information into clear guides
+
+### My Contributions (Human)
+
+1. **Architecture Design** - Chose monorepo, OpenAPI-first, workflow state machine
+2. **Business Logic Decisions** - Designed immutable audit trail, role enforcement
+3. **Integration & Testing** - End-to-end testing of workflows, security verification
+4. **Refinement** - Adjusted generated code for specific requirements
+5. **Deployment** - Set up and tested Replit deployment
+6. **Documentation** - Verified all docs, added trade-offs and insights
+
+---
+
+## Data Model
+
+### Database Schema
+
+#### Users Table
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role user_role NOT NULL,  -- ENUM: APPLICANT | REVIEWER
+  created_at TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT NOW()
+);
+```
+
+**Design Rationale:**
+- Email as unique identifier for authentication
+- Password hash using bcryptjs (never store plain text)
+- Role enum ensures type safety at database level
+- Timestamp tracks user registration for audit purposes
+
+#### Applications Table
+```sql
+CREATE TABLE applications (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  category application_category NOT NULL,  -- ENUM: ownership change types
+  company_name TEXT NOT NULL,
+  registration_number TEXT NOT NULL,
+  beneficial_owner_name TEXT NOT NULL,
+  ownership_percentage NUMERIC(5,2) NOT NULL,  -- 0-100, stored as numeric
+  effective_date DATE,
+  change_reason TEXT NOT NULL,
+  supporting_notes TEXT,
+  attachment_name TEXT,
+  attachment_url TEXT,
+  status application_status NOT NULL,  -- ENUM: DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED/CHANGES_REQUESTED
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT NOW()
+);
+```
+
+**Design Rationale:**
+- All required fields marked NOT NULL to enforce data quality
+- `ownership_percentage` stored as NUMERIC for precision (avoids floating-point errors)
+- Status enum enforces valid workflow states at database level
+- `user_id` foreign key ensures referential integrity
+- Timestamps track creation and last modification
+- Optional attachment fields allow flexible file support
+
+#### Audit Logs Table
+```sql
+CREATE TABLE audit_logs (
+  id SERIAL PRIMARY KEY,
+  application_id INTEGER NOT NULL REFERENCES applications(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  user_role user_role NOT NULL,  -- Denormalized role for historical accuracy
+  previous_status application_status NOT NULL,
+  new_status application_status NOT NULL,
+  comment TEXT,  -- Optional reason for state transition
+  timestamp TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT NOW()
+);
+```
+
+**Design Rationale:**
+- **Immutable by design**: No UPDATE/DELETE operations on audit logs
+- **Denormalized user_role**: Stores role at time of action (accounts for role changes)
+- **Complete history**: Tracks every workflow transition
+- **Enables compliance**: Required for regulatory audit trails
+- **Queryable history**: Foreign keys allow joining with users/applications for reporting
+
+### ER Diagram
+
+```
+┌─────────────────────────┐
+│       USERS             │
+├─────────────────────────┤
+│ id (PK)                 │
+│ email (UNIQUE)          │
+│ password_hash           │
+│ role (ENUM)             │ ◄────────────┐
+│ created_at              │              │
+└─────────────────────────┘              │
+           ▲                              │
+           │                              │
+        1:N │                              │
+           │                              │
+┌─────────────────────────────────────────────────────────┐
+│         APPLICATIONS                                    │
+├─────────────────────────────────────────────────────────┤
+│ id (PK)                                                 │
+│ title, category, company_name, registration_number     │
+│ beneficial_owner_name, ownership_percentage             │
+│ effective_date, change_reason, supporting_notes         │
+│ attachment_name, attachment_url                         │
+│ status (ENUM: workflow states)                          │
+│ user_id (FK → users.id)                                 │ ──────┐
+│ created_at, updated_at                                  │       │
+└─────────────────────────────────────────────────────────┘       │
+           ▲                                                        │
+           │                                                        │
+        1:N │                                                        │
+           │                                                        │
+┌─────────────────────────────────────────────────────────────┐    │
+│         AUDIT_LOGS                                          │    │
+├─────────────────────────────────────────────────────────────┤    │
+│ id (PK)                                                     │    │
+│ application_id (FK → applications.id)                       │    │
+│ user_id (FK → users.id) ────────────────────────────────────┘    │
+│ user_role (denormalized at time of action)                  │
+│ previous_status, new_status (ENUM)                          │
+│ comment (optional)                                          │
+│ timestamp (immutable, NOT UPDATABLE)                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Enums
+
+**user_role**
+- `APPLICANT` - Creates and manages applications
+- `REVIEWER` - Reviews and approves/rejects applications
+
+**application_status**
+- `DRAFT` - Initial state, applicant editing
+- `SUBMITTED` - Ready for review, awaiting reviewer
+- `UNDER_REVIEW` - Reviewer actively reviewing
+- `APPROVED` - Approved by reviewer
+- `REJECTED` - Rejected by reviewer (final state)
+- `CHANGES_REQUESTED` - Reviewer requesting modifications (transitions back to DRAFT)
+
+**application_category**
+- `OWNERSHIP_TRANSFER` - Transfer of ownership between parties
+- `PERCENTAGE_CHANGE` - Change in ownership percentage
+- `NEW_BENEFICIAL_OWNER` - Adding a new beneficial owner
+- `REMOVAL_OF_BENEFICIAL_OWNER` - Removing an existing beneficial owner
+- `CORRECTION_AMENDMENT` - Correcting or amending existing information
+
+---
+
+## Design Decisions
+
+### 1. OpenAPI-First Architecture
+
+**Decision**: Define all API contracts in OpenAPI 3.1 YAML, then code-generate everything else.
+
+**Rationale**:
+- Single source of truth for API contracts
+- Automatic type safety across frontend/backend
+- Enables automatic Zod schema generation
+- Facilitates API documentation and client SDK generation
+- Reduces type mismatches and bugs
+
+**Trade-off**: Requires workflow discipline; schema changes need regeneration
+
+---
+
+### 2. Workflow State Machine (Centralized, Pure Function)
+
+**Decision**: All state transitions validated through a pure function (`workflow.ts`) with a transition table.
+
+```typescript
+// Example: Transition rules enforced in code
+const TRANSITIONS = {
+  DRAFT: { SUBMITTED: "APPLICANT" },
+  SUBMITTED: { UNDER_REVIEW: "REVIEWER" },
+  UNDER_REVIEW: {
+    APPROVED: "REVIEWER",
+    REJECTED: "REVIEWER",
+    CHANGES_REQUESTED: "REVIEWER"
+  },
+  CHANGES_REQUESTED: { DRAFT: "APPLICANT" }
+};
+```
+
+**Rationale**:
+- Prevents invalid state transitions at runtime
+- Role-based authorization enforced at workflow level
+- Easy to audit: all rules visible in one place
+- Testable: pure function with no side effects
+- Reusable: shared between API and (potentially) other services
+
+**Trade-off**: Requires discipline to route all transitions through this validator
+
+---
+
+### 3. Immutable Audit Trail
+
+**Decision**: Every workflow transition creates an audit log entry; audit logs are never updated or deleted.
+
+**Rationale**:
+- Regulatory compliance (FINRA, SEC requirements for beneficial ownership records)
+- Non-repudiation: proves who did what and when
+- Enables forensic analysis of decision-making
+- Stored with denormalized `user_role` to capture role at time of action
+- Comment field provides reasoning for transitions
+
+**Implementation**:
+- Audit logs INSERT-ONLY (no UPDATE/DELETE)
+- Denormalized user info at time of action
+- Timestamp on every entry
+- Complete history queryable for reporting
+
+---
+
+### 4. Role-Based Access Control (Server-Side Only)
+
+**Decision**: All authorization happens on the backend; frontend adapts UI based on role but never trusts it.
+
+**Rationale**:
+- Security: authorization can't be bypassed by client-side tampering
+- Prevents unauthorized actions even if frontend is compromised
+- Role stored in JWT payload, verified on every request
+- Middleware enforces before reaching business logic
+
+**Example**:
+```typescript
+// Backend always verifies role
+router.post('/applications/:id/approve', 
+  requireAuth,                    // Verify JWT
+  requireRole('REVIEWER'),        // Enforce role
+  approveApplication              // Business logic
+);
+```
+
+---
+
+### 5. TypeScript End-to-End
+
+**Decision**: TypeScript for frontend, backend, and database layers (with Drizzle ORM for type-safe queries).
+
+**Rationale**:
+- Catches type errors at compile time, not runtime
+- Shared types between frontend/backend prevent mismatches
+- Database schema generates TypeScript types automatically
+- IDE autocomplete and refactoring support
+- Easier onboarding for future developers
+
+---
+
+### 6. Monorepo with pnpm Workspaces
+
+**Decision**: Single repository with shared libraries (`lib/*`) and runnable artifacts (`artifacts/*`).
+
+**Rationale**:
+- Shared code (database schemas, API specs) stays in sync across services
+- Database schema changes don't risk version mismatches
+- Easier to coordinate changes across frontend/backend
+- Single deployment unit
+
+**Structure**:
+- `lib/` - Shared, reusable packages (db schemas, API specs)
+- `artifacts/` - Runnable applications (api-server, web)
+- `scripts/` - Development utilities
+
+---
+
+### 7. PostgreSQL + Drizzle ORM (No Migration Files)
+
+**Decision**: Use Drizzle ORM with schema-driven migrations instead of manual SQL files.
+
+**Rationale**:
+- Schema defined once in TypeScript
+- Automatic migration generation
+- Type-safe queries with full IDE support
+- Avoids manual SQL maintenance burden
+
+---
 
 ## Features
 
@@ -270,26 +688,6 @@ Request-Approve/
     └── src/
 ```
 
-## Demo Users
-
-After database initialization, the following users are available:
-
-| Email | Password | Role | Purpose |
-|-------|----------|------|---------|
-| applicant@example.com | password123 | APPLICANT | Create and manage requests |
-| reviewer@example.com | password123 | REVIEWER | Review and approve/reject requests |
-
-### To Create Additional Users
-
-Use the API's `/api/auth/register` endpoint or directly insert into the database:
-
-```bash
-psql -U ownership_dev -d beneficial_ownership_dev
-
-INSERT INTO users (email, password_hash, role, created_at) VALUES
-('newuser@example.com', 'hashed_password', 'APPLICANT', NOW());
-```
-
 ## Available Scripts
 
 ### Root Level Commands
@@ -371,6 +769,19 @@ pnpm --filter @workspace/api-spec run codegen
 - PostgreSQL database (managed service recommended: AWS RDS, Supabase, Vercel Postgres, etc.)
 - Node.js 24 runtime support
 - Environment variable management system
+
+### Current Deployment: Replit
+
+This project is currently deployed on **Replit** for demonstration purposes.
+
+**Live URL**: https://request-approve-demo.replit.dev
+
+**Why Replit?**
+- One-click deployments from GitHub
+- Built-in PostgreSQL support
+- Environment variable management
+- Automatic HTTPS
+- No credit card required
 
 ### Deployment Options
 
@@ -557,31 +968,97 @@ SENTRY_DSN=your-sentry-dsn
 LOG_LEVEL=info
 ```
 
-## Environment Variables
+## Trade-offs & Future Improvements
 
-### Development (`.env.local`)
+### Trade-offs Made
 
-```bash
-# Required
-DATABASE_URL=postgresql://user:password@localhost:5432/beneficial_ownership_dev
-SESSION_SECRET=dev-secret-change-in-production
+1. **State Machine Centralization**
+   - ✅ Benefit: Single source of truth for all workflow rules
+   - ❌ Trade-off: Requires discipline to always route transitions through validator
+   - 💡 Alternative: Could add database constraints as backup enforcement
 
-# Optional
-NODE_ENV=development
-API_PORT=8080
-LOG_LEVEL=debug
-```
+2. **OpenAPI-First (Code Generation)**
+   - ✅ Benefit: Type safety, single source of truth
+   - ❌ Trade-off: Extra regeneration step when API changes
+   - 💡 Could automate: Add pre-commit hook to regenerate on spec changes
 
-### Production (Deploy Platform Settings)
+3. **JWT Tokens (Stateless Auth)**
+   - ✅ Benefit: Scalable, no session storage needed
+   - ❌ Trade-off: Can't revoke tokens instantly (24-hour expiry is compromise)
+   - 💡 Future: Add token blacklist for real-time revocation
 
-```bash
-DATABASE_URL=<managed-postgres-url>
-SESSION_SECRET=<strong-random-secret>
-NODE_ENV=production
-API_PORT=8080
-LOG_LEVEL=info
-CORS_ORIGIN=https://your-domain.com
-```
+4. **File Uploads to Local Filesystem**
+   - ✅ Benefit: Simple for development/demo
+   - ❌ Trade-off: Not scalable to multiple servers
+   - 💡 Production: Switch to S3 or cloud storage
+
+5. **Monorepo (Single Repo)**
+   - ✅ Benefit: Easier to coordinate changes, shared code stays in sync
+   - ❌ Trade-off: Can't version packages independently
+   - 💡 Future: Could split into separate repos with npm packages if needed
+
+### Future Improvements (With More Time)
+
+1. **Real-Time Updates**
+   - Add WebSocket support for live application status updates
+   - Implement notification system when applications are reviewed
+   - **Effort**: Medium (1-2 days)
+
+2. **Advanced Audit Features**
+   - Generate compliance reports from audit logs
+   - Timeline visualization of application history
+   - Email notifications on status changes
+   - **Effort**: Medium (1-2 days)
+
+3. **File Attachments Enhancement**
+   - Support for multiple file types (PDF, DOCX, images)
+   - File virus scanning before upload
+   - S3/Cloud storage integration instead of local filesystem
+   - **Effort**: Medium (1 day)
+
+4. **Pagination & Search**
+   - Add pagination to applications list
+   - Full-text search across applications
+   - Filter by status, date range, owner
+   - **Effort**: Low-Medium (1 day)
+
+5. **Email Notifications**
+   - Email applicants when reviewer requests changes
+   - Email reviewers when new applications submitted
+   - Email approvers with approval confirmation
+   - **Effort**: Low (6 hours)
+
+6. **Testing**
+   - Unit tests for workflow state machine
+   - Integration tests for API endpoints
+   - E2E tests for complete workflows
+   - **Effort**: Medium (1-2 days)
+
+7. **Batch Operations**
+   - Bulk approve/reject applications
+   - Export applications to CSV/PDF
+   - Import applications from external systems
+   - **Effort**: Medium (1-2 days)
+
+8. **Role Hierarchy**
+   - Add ADMIN role for system management
+   - Add AUDITOR role for compliance reviews
+   - User management interface
+   - **Effort**: Medium-High (1-2 days)
+
+9. **Advanced Validation**
+   - Company registration number verification against public registries
+   - Beneficial owner identity verification
+   - Ownership percentage validation (must sum to 100% for all owners)
+   - **Effort**: High (2-3 days, requires external APIs)
+
+10. **Performance Optimization**
+    - Add caching layer (Redis) for frequently accessed data
+    - Database query optimization with indexes
+    - Frontend code splitting and lazy loading
+    - **Effort**: Low-Medium (1-2 days)
+
+---
 
 ## Troubleshooting
 
@@ -680,6 +1157,8 @@ psql -U ownership_dev -d beneficial_ownership_dev
 # Check for errors in migrations
 SELECT * FROM drizzle_migrations_journal;
 ```
+
+---
 
 ## Contributing
 
