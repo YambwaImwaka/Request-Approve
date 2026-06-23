@@ -8,9 +8,11 @@ import {
 } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/status-badge";
+import { getCategoryLabel } from "@/lib/category";
 import { format } from "date-fns";
 import {
   FileText,
@@ -73,21 +75,23 @@ export default function Dashboard() {
     ? [...(reviewQueue ?? []), ...(inReviewItems ?? [])]
     : [];
 
-  const filteredApps = (applications ?? []).filter(
-    (app) =>
-      search === "" ||
-      app.companyName.toLowerCase().includes(search.toLowerCase()) ||
-      app.registrationNumber.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredApps = (applications ?? []).filter((app) => {
+    if (search === "") return true;
+    const q = search.toLowerCase();
+    return (
+      app.companyName.toLowerCase().includes(q) ||
+      app.registrationNumber.toLowerCase().includes(q) ||
+      (app.title ?? "").toLowerCase().includes(q)
+    );
+  });
 
   const AppTable = ({ apps }: { apps: Application[] }) => (
     <div className="relative overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Company</TableHead>
-            <TableHead>Reg Number</TableHead>
-            <TableHead>Beneficial Owner</TableHead>
+            <TableHead>Request</TableHead>
+            <TableHead>Category</TableHead>
             <TableHead>Updated</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -99,17 +103,24 @@ export default function Dashboard() {
               key={app.id}
               className="hover:bg-muted/50 cursor-pointer transition-colors"
             >
-              <TableCell className="font-medium">
-                <Link href={`/applications/${app.id}`}>{app.companyName}</Link>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {app.registrationNumber}
+              <TableCell>
+                <Link href={`/applications/${app.id}`}>
+                  <div className="font-medium text-sm leading-tight">
+                    {app.title || app.companyName}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {app.companyName} · <span className="font-mono">{app.registrationNumber}</span>
+                  </div>
+                </Link>
               </TableCell>
               <TableCell>
-                <div>{app.beneficialOwnerName}</div>
-                <div className="text-xs text-muted-foreground">
-                  {app.ownershipPercentage}%
-                </div>
+                {app.category ? (
+                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                    {getCategoryLabel(app.category)}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {format(new Date(app.updatedAt), "MMM d, yyyy")}
@@ -119,11 +130,7 @@ export default function Dashboard() {
               </TableCell>
               <TableCell className="text-right">
                 <Link href={`/applications/${app.id}`}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1 text-xs"
-                  >
+                  <Button variant="outline" size="sm" className="gap-1 text-xs">
                     {isReviewer &&
                     (app.status === ApplicationStatus.SUBMITTED ||
                       app.status === ApplicationStatus.UNDER_REVIEW)

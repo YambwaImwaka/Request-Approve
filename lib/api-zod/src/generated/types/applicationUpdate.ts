@@ -5,8 +5,12 @@
  * Beneficial Ownership Change Request Workflow System API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApplicationCategory } from './applicationCategory';
 
 export interface ApplicationUpdate {
+  /** @minLength 1 */
+  title?: string;
+  category?: ApplicationCategory;
   /** @minLength 1 */
   companyName?: string;
   /** @minLength 1 */
@@ -18,7 +22,10 @@ export interface ApplicationUpdate {
      * @maximum 100
      */
   ownershipPercentage?: number;
+  effectiveDate?: Date;
   /** @minLength 1 */
   changeReason?: string;
   supportingNotes?: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
 }

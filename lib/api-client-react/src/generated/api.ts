@@ -514,7 +514,7 @@ export const getUpdateApplicationUrl = (id: number,) => {
 }
 
 /**
- * @summary Update a DRAFT application (owner only)
+ * @summary Update a DRAFT or CHANGES_REQUESTED application (owner only)
  */
 export const updateApplication = async (id: number,
     applicationUpdate: ApplicationUpdate, options?: RequestInit): Promise<Application> => {
@@ -564,7 +564,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateApplicationMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Update a DRAFT application (owner only)
+ * @summary Update a DRAFT or CHANGES_REQUESTED application (owner only)
  */
 export const useUpdateApplication = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateApplication>>, TError,{id: number;data: BodyType<ApplicationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}

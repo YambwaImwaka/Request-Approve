@@ -108,6 +108,9 @@ router.post("/applications", requireAuth, async (req: Request, res: Response): P
     .values({
       ...parsed.data,
       ownershipPercentage: String(parsed.data.ownershipPercentage),
+      effectiveDate: parsed.data.effectiveDate instanceof Date
+        ? parsed.data.effectiveDate.toISOString().split("T")[0]
+        : (parsed.data.effectiveDate ?? null),
       userId: req.user!.userId,
       status: "DRAFT",
     })
@@ -199,6 +202,11 @@ router.patch("/applications/:id", requireAuth, async (req: Request, res: Respons
   if (parsed.data.ownershipPercentage !== undefined) {
     updateData.ownershipPercentage = String(parsed.data.ownershipPercentage);
   }
+  if (parsed.data.effectiveDate !== undefined) {
+    updateData.effectiveDate = parsed.data.effectiveDate instanceof Date
+      ? parsed.data.effectiveDate.toISOString().split("T")[0]
+      : (parsed.data.effectiveDate ?? null);
+  }
   if (isChangesRequested) {
     updateData.status = "DRAFT";
   }
@@ -213,7 +221,7 @@ router.patch("/applications/:id", requireAuth, async (req: Request, res: Respons
     await db.insert(auditLogsTable).values({
       applicationId: params.data.id,
       userId: req.user!.userId,
-      userRole: req.user!.role as string,
+      userRole: req.user!.role as "APPLICANT" | "REVIEWER",
       previousStatus: "CHANGES_REQUESTED",
       newStatus: "DRAFT",
       comment: "Applicant updated the application after changes were requested.",

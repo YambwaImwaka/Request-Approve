@@ -5,18 +5,27 @@
  * Beneficial Ownership Change Request Workflow System API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApplicationCategory } from './applicationCategory';
 import type { ApplicationStatus } from './applicationStatus';
 import type { User } from './user';
 
 export interface Application {
   id: number;
+  title: string;
+  category: ApplicationCategory;
   companyName: string;
   registrationNumber: string;
   beneficialOwnerName: string;
   ownershipPercentage: number;
+  /** @nullable */
+  effectiveDate?: Date | null;
   changeReason: string;
   /** @nullable */
   supportingNotes?: string | null;
+  /** @nullable */
+  attachmentName?: string | null;
+  /** @nullable */
+  attachmentUrl?: string | null;
   status: ApplicationStatus;
   userId: number;
   createdAt: Date;

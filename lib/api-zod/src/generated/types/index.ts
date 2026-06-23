@@ -7,6 +7,7 @@
  */
 
 export * from './application';
+export * from './applicationCategory';
 export * from './applicationDetail';
 export * from './applicationInput';
 export * from './applicationStats';
@@ -19,6 +20,7 @@ export * from './errorResponse';
 export * from './healthStatus';
 export * from './listApplicationsParams';
 export * from './loginInput';
+export * from './uploadResponse';
 export * from './user';
 export * from './userRole';
 export * from './workflowActionInput';

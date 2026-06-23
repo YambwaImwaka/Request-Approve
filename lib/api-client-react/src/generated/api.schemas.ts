@@ -51,15 +51,34 @@ export const ApplicationStatus = {
   CHANGES_REQUESTED: 'CHANGES_REQUESTED',
 } as const;
 
+export type ApplicationCategory = typeof ApplicationCategory[keyof typeof ApplicationCategory];
+
+
+export const ApplicationCategory = {
+  OWNERSHIP_TRANSFER: 'OWNERSHIP_TRANSFER',
+  PERCENTAGE_CHANGE: 'PERCENTAGE_CHANGE',
+  NEW_BENEFICIAL_OWNER: 'NEW_BENEFICIAL_OWNER',
+  REMOVAL_OF_BENEFICIAL_OWNER: 'REMOVAL_OF_BENEFICIAL_OWNER',
+  CORRECTION_AMENDMENT: 'CORRECTION_AMENDMENT',
+} as const;
+
 export interface Application {
   id: number;
+  title: string;
+  category: ApplicationCategory;
   companyName: string;
   registrationNumber: string;
   beneficialOwnerName: string;
   ownershipPercentage: number;
+  /** @nullable */
+  effectiveDate?: string | null;
   changeReason: string;
   /** @nullable */
   supportingNotes?: string | null;
+  /** @nullable */
+  attachmentName?: string | null;
+  /** @nullable */
+  attachmentUrl?: string | null;
   status: ApplicationStatus;
   userId: number;
   createdAt: string;
@@ -82,13 +101,21 @@ export interface AuditLogEntry {
 
 export interface ApplicationDetail {
   id: number;
+  title: string;
+  category: ApplicationCategory;
   companyName: string;
   registrationNumber: string;
   beneficialOwnerName: string;
   ownershipPercentage: number;
+  /** @nullable */
+  effectiveDate?: string | null;
   changeReason: string;
   /** @nullable */
   supportingNotes?: string | null;
+  /** @nullable */
+  attachmentName?: string | null;
+  /** @nullable */
+  attachmentUrl?: string | null;
   status: ApplicationStatus;
   userId: number;
   createdAt: string;
@@ -98,6 +125,9 @@ export interface ApplicationDetail {
 }
 
 export interface ApplicationInput {
+  /** @minLength 1 */
+  title: string;
+  category: ApplicationCategory;
   /** @minLength 1 */
   companyName: string;
   /** @minLength 1 */
@@ -109,12 +139,18 @@ export interface ApplicationInput {
      * @maximum 100
      */
   ownershipPercentage: number;
+  effectiveDate?: string;
   /** @minLength 1 */
   changeReason: string;
   supportingNotes?: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
 }
 
 export interface ApplicationUpdate {
+  /** @minLength 1 */
+  title?: string;
+  category?: ApplicationCategory;
   /** @minLength 1 */
   companyName?: string;
   /** @minLength 1 */
@@ -126,9 +162,12 @@ export interface ApplicationUpdate {
      * @maximum 100
      */
   ownershipPercentage?: number;
+  effectiveDate?: string;
   /** @minLength 1 */
   changeReason?: string;
   supportingNotes?: string;
+  attachmentName?: string;
+  attachmentUrl?: string;
 }
 
 export interface WorkflowActionInput {
@@ -145,6 +184,13 @@ export type ApplicationStatsByStatus = {[key: string]: number};
 export interface ApplicationStats {
   total: number;
   byStatus: ApplicationStatsByStatus;
+}
+
+export interface UploadResponse {
+  /** Served URL path for the uploaded file */
+  url: string;
+  /** Original filename */
+  name: string;
 }
 
 export type ListApplicationsParams = {

@@ -1,0 +1,3 @@
+- [Workflow validation order](workflow-validation-order.md) — transition validity is checked before role; SUBMITTED→APPROVED by APPLICANT returns 400 not 403.
+- [Orval + file uploads](orval-file-upload.md) — do NOT put multipart/form-data file upload endpoints in OpenAPI spec; orval generates `zod.instanceof(File)` which breaks the Node tsconfig.
+- [effectiveDate DB conversion](effectivedate-conversion.md) — orval coerces format:date to `Date` objects; must convert to ISO string before Drizzle date() insert.

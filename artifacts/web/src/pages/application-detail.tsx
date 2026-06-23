@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/status-badge";
+import { getCategoryLabel } from "@/lib/category";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -39,8 +41,11 @@ import {
   User as UserIcon,
   Clock,
   RotateCcw,
+  Paperclip,
+  ExternalLink,
+  Calendar,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -52,7 +57,11 @@ export default function ApplicationDetail() {
   const [comment, setComment] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const { data: app, isLoading, refetch } = useGetApplication(applicationId, {
+  const {
+    data: app,
+    isLoading,
+    refetch,
+  } = useGetApplication(applicationId, {
     query: {
       enabled: !!applicationId && !isNaN(applicationId),
       queryKey: getGetApplicationQueryKey(applicationId),
@@ -77,10 +86,13 @@ export default function ApplicationDetail() {
     requestChangesMutation.isPending;
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: getGetApplicationQueryKey(applicationId) });
+    queryClient.invalidateQueries({
+      queryKey: getGetApplicationQueryKey(applicationId),
+    });
     queryClient.invalidateQueries({ queryKey: getListApplicationsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetApplicationStatsQueryKey() });
-    // Force immediate refetch of this application to show updated audit trail
+    queryClient.invalidateQueries({
+      queryKey: getGetApplicationStatsQueryKey(),
+    });
     refetch();
   };
 
@@ -90,25 +102,14 @@ export default function ApplicationDetail() {
     toast({ title: "Action Failed", description: message, variant: "destructive" });
   };
 
-  /** 
-   * Run a reviewer action. If the application is still SUBMITTED, 
-   * automatically starts the review first, then performs the action.
-   */
-  const runReviewerAction = (
-    actionLabel: string,
-    run: () => void,
-  ) => {
+  const runReviewerAction = (actionLabel: string, run: () => void) => {
     if (!app) return;
-
     if (app.status === ApplicationStatus.SUBMITTED) {
-      // Must start review first, then immediately perform the action
       setPendingAction(actionLabel);
       startReviewMutation.mutate(
         { id: applicationId },
         {
-          onSuccess: () => {
-            run();
-          },
+          onSuccess: () => run(),
           onError: (err) => {
             setPendingAction(null);
             showError(err, "Failed to start review");
@@ -123,7 +124,10 @@ export default function ApplicationDetail() {
   const handleApprove = () => {
     runReviewerAction("Approving", () => {
       approveMutation.mutate(
-        { id: applicationId, data: comment.trim() ? { comment: comment.trim() } : undefined },
+        {
+          id: applicationId,
+          data: comment.trim() ? { comment: comment.trim() } : undefined,
+        },
         {
           onSuccess: () => {
             setPendingAction(null);
@@ -142,7 +146,11 @@ export default function ApplicationDetail() {
 
   const handleReject = () => {
     if (!comment.trim()) {
-      toast({ title: "Comment required", description: "Please provide a reason for rejection.", variant: "destructive" });
+      toast({
+        title: "Comment required",
+        description: "Please provide a reason for rejection.",
+        variant: "destructive",
+      });
       return;
     }
     runReviewerAction("Rejecting", () => {
@@ -166,7 +174,11 @@ export default function ApplicationDetail() {
 
   const handleRequestChanges = () => {
     if (!comment.trim()) {
-      toast({ title: "Comment required", description: "Please describe the changes needed.", variant: "destructive" });
+      toast({
+        title: "Comment required",
+        description: "Please describe the changes needed.",
+        variant: "destructive",
+      });
       return;
     }
     runReviewerAction("Requesting changes", () => {
@@ -177,7 +189,10 @@ export default function ApplicationDetail() {
             setPendingAction(null);
             setComment("");
             invalidateAll();
-            toast({ title: "Changes Requested", description: "The application has been returned to the applicant." });
+            toast({
+              title: "Changes Requested",
+              description: "The application has been returned to the applicant.",
+            });
           },
           onError: (err) => {
             setPendingAction(null);
@@ -194,7 +209,10 @@ export default function ApplicationDetail() {
       {
         onSuccess: () => {
           invalidateAll();
-          toast({ title: "Submitted", description: "Your application has been submitted for review." });
+          toast({
+            title: "Submitted",
+            description: "Your application has been submitted for review.",
+          });
         },
         onError: (err) => {
           showError(err, "Failed to submit application");
@@ -232,13 +250,25 @@ export default function ApplicationDetail() {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight truncate">{app.companyName}</h1>
+            <h1 className="text-2xl font-bold tracking-tight truncate">
+              {app.title || app.companyName}
+            </h1>
             <StatusBadge status={app.status} />
           </div>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Registration: <span className="font-mono">{app.registrationNumber}</span>
-            {app.user && <span className="ml-3">Submitted by: {app.user.email}</span>}
-          </p>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            {app.category && (
+              <Badge variant="secondary" className="text-xs">
+                {getCategoryLabel(app.category)}
+              </Badge>
+            )}
+            <p className="text-muted-foreground text-sm">
+              {app.companyName} ·{" "}
+              <span className="font-mono">{app.registrationNumber}</span>
+              {app.user && (
+                <span className="ml-2">· by {app.user.email}</span>
+              )}
+            </p>
+          </div>
         </div>
         {isApplicant && app.status === ApplicationStatus.DRAFT && (
           <div className="flex gap-2 shrink-0">
@@ -262,15 +292,16 @@ export default function ApplicationDetail() {
             </Button>
           </div>
         )}
-        {isApplicant && app.status === ApplicationStatus.CHANGES_REQUESTED && (
-          <div className="flex gap-2 shrink-0">
-            <Link href={`/applications/${app.id}/edit`}>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Edit className="w-4 h-4" /> Edit & Resubmit
-              </Button>
-            </Link>
-          </div>
-        )}
+        {isApplicant &&
+          app.status === ApplicationStatus.CHANGES_REQUESTED && (
+            <div className="flex gap-2 shrink-0">
+              <Link href={`/applications/${app.id}/edit`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Edit className="w-4 h-4" /> Edit & Resubmit
+                </Button>
+              </Link>
+            </div>
+          )}
       </div>
 
       {/* ── REVIEWER ACTION PANEL ── */}
@@ -288,7 +319,6 @@ export default function ApplicationDetail() {
             </p>
           </CardHeader>
           <CardContent className="pt-5 space-y-5">
-            {/* Comment field */}
             <div className="space-y-2">
               <Label htmlFor="reviewer-comment" className="text-sm font-semibold">
                 Reviewer Comment
@@ -306,14 +336,13 @@ export default function ApplicationDetail() {
               />
             </div>
 
-            {/* Action buttons */}
             <div className="flex flex-wrap gap-3 pt-1">
               <Button
                 onClick={handleApprove}
                 disabled={isWorking}
                 className="bg-green-600 hover:bg-green-700 text-white gap-2 min-w-[110px]"
               >
-                {(approveMutation.isPending || pendingAction === "Approving") ? (
+                {approveMutation.isPending || pendingAction === "Approving" ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <CheckCircle className="w-4 h-4" />
@@ -327,7 +356,8 @@ export default function ApplicationDetail() {
                 variant="outline"
                 className="border-orange-400 text-orange-700 hover:bg-orange-50 gap-2 min-w-[160px]"
               >
-                {(requestChangesMutation.isPending || pendingAction === "Requesting changes") ? (
+                {requestChangesMutation.isPending ||
+                pendingAction === "Requesting changes" ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <RotateCcw className="w-4 h-4" />
@@ -341,7 +371,7 @@ export default function ApplicationDetail() {
                 variant="outline"
                 className="border-red-400 text-red-700 hover:bg-red-50 gap-2 min-w-[100px]"
               >
-                {(rejectMutation.isPending || pendingAction === "Rejecting") ? (
+                {rejectMutation.isPending || pendingAction === "Rejecting" ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <XCircle className="w-4 h-4" />
@@ -351,37 +381,57 @@ export default function ApplicationDetail() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Approve does not require a comment. Reject and Request Changes require one.
+              Approve does not require a comment. Reject and Request Changes
+              require one.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Final state banner for reviewers */}
+      {/* Final state banner */}
       {isReviewer && isFinalState && (
-        <Card className={`border ${app.status === ApplicationStatus.APPROVED ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50"}`}>
+        <Card
+          className={`border ${
+            app.status === ApplicationStatus.APPROVED
+              ? "border-green-200 bg-green-50/50"
+              : "border-red-200 bg-red-50/50"
+          }`}
+        >
           <CardContent className="p-4 flex items-center gap-3">
             {app.status === ApplicationStatus.APPROVED ? (
               <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
             ) : (
               <XCircle className="w-5 h-5 text-red-600 shrink-0" />
             )}
-            <p className={`text-sm font-medium ${app.status === ApplicationStatus.APPROVED ? "text-green-800" : "text-red-800"}`}>
-              This application was {app.status === ApplicationStatus.APPROVED ? "approved" : "rejected"}. No further action is required.
+            <p
+              className={`text-sm font-medium ${
+                app.status === ApplicationStatus.APPROVED
+                  ? "text-green-800"
+                  : "text-red-800"
+              }`}
+            >
+              This application was{" "}
+              {app.status === ApplicationStatus.APPROVED
+                ? "approved"
+                : "rejected"}
+              . No further action is required.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Applicant — changes requested banner */}
+      {/* Changes requested banner (applicant) */}
       {isApplicant && app.status === ApplicationStatus.CHANGES_REQUESTED && (
         <Card className="border-orange-200 bg-orange-50/60">
           <CardContent className="p-4 flex items-start gap-3">
             <RotateCcw className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-orange-900">Changes Requested</p>
+              <p className="text-sm font-semibold text-orange-900">
+                Changes Requested
+              </p>
               <p className="text-sm text-orange-800 mt-1">
-                The reviewer has requested changes. Please review their feedback in the audit timeline below, then edit and resubmit.
+                The reviewer has requested changes. Review their feedback in the
+                audit timeline below, then edit and resubmit.
               </p>
             </div>
           </CardContent>
@@ -397,29 +447,61 @@ export default function ApplicationDetail() {
               <CardTitle className="text-base">Application Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Key fields grid */}
               <div className="grid grid-cols-2 gap-y-5 gap-x-4">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Company Name</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Company Name
+                  </p>
                   <p className="text-sm font-medium">{app.companyName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Registration Number</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Registration Number
+                  </p>
                   <p className="text-sm font-mono">{app.registrationNumber}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Beneficial Owner</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Beneficial Owner
+                  </p>
                   <p className="text-sm font-medium">{app.beneficialOwnerName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Ownership Percentage</p>
-                  <p className="text-sm font-mono font-semibold">{app.ownershipPercentage}%</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Ownership Percentage
+                  </p>
+                  <p className="text-sm font-mono font-semibold">
+                    {app.ownershipPercentage}%
+                  </p>
+                </div>
+                {app.effectiveDate && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                      Effective Date
+                    </p>
+                    <p className="text-sm flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                      {format(parseISO(app.effectiveDate), "MMMM d, yyyy")}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    Category
+                  </p>
+                  <Badge variant="secondary" className="text-xs">
+                    {getCategoryLabel(app.category ?? "")}
+                  </Badge>
                 </div>
               </div>
 
               <Separator />
 
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reason for Change</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                  Reason for Change
+                </p>
                 <div className="bg-muted/30 p-3 rounded-md border text-sm whitespace-pre-wrap">
                   {app.changeReason}
                 </div>
@@ -427,16 +509,45 @@ export default function ApplicationDetail() {
 
               {app.supportingNotes && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Supporting Notes</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Supporting Notes
+                  </p>
                   <div className="bg-muted/30 p-3 rounded-md border text-sm whitespace-pre-wrap">
                     {app.supportingNotes}
                   </div>
                 </div>
               )}
 
+              {/* Attachment */}
+              {app.attachmentUrl && app.attachmentName && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    Supporting Document
+                  </p>
+                  <a
+                    href={app.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/20 hover:bg-muted/50 transition-colors text-sm"
+                  >
+                    <Paperclip className="w-4 h-4 text-muted-foreground" />
+                    <span className="truncate max-w-[200px]">
+                      {app.attachmentName}
+                    </span>
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </a>
+                </div>
+              )}
+
               <div className="flex gap-6 pt-2 text-xs text-muted-foreground border-t">
-                <span>Created: {format(new Date(app.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
-                <span>Updated: {format(new Date(app.updatedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                <span>
+                  Created:{" "}
+                  {format(new Date(app.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                </span>
+                <span>
+                  Updated:{" "}
+                  {format(new Date(app.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -450,7 +561,8 @@ export default function ApplicationDetail() {
                 <Clock className="w-4 h-4" />
                 Audit Trail
                 <span className="ml-auto text-xs font-normal text-muted-foreground">
-                  {auditLog.length} {auditLog.length === 1 ? "entry" : "entries"}
+                  {auditLog.length}{" "}
+                  {auditLog.length === 1 ? "entry" : "entries"}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -458,22 +570,23 @@ export default function ApplicationDetail() {
               {auditLog.length === 0 ? (
                 <div className="text-center py-8 space-y-2">
                   <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto" />
-                  <p className="text-sm text-muted-foreground">No activity yet.</p>
-                  {isApplicant && app.status === ApplicationStatus.DRAFT && (
-                    <p className="text-xs text-muted-foreground">
-                      Submit this request to begin the review process.
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    No activity yet.
+                  </p>
+                  {isApplicant &&
+                    app.status === ApplicationStatus.DRAFT && (
+                      <p className="text-xs text-muted-foreground">
+                        Submit this request to begin the review process.
+                      </p>
+                    )}
                 </div>
               ) : (
                 <div className="space-y-5">
                   {auditLog.map((entry, index) => (
                     <div key={entry.id} className="relative pl-5">
-                      {/* Connecting line */}
                       {index < auditLog.length - 1 && (
                         <div className="absolute left-[7px] top-4 bottom-0 w-px bg-border" />
                       )}
-                      {/* Dot */}
                       <div className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-primary bg-background" />
 
                       <div className="space-y-1">
@@ -483,7 +596,10 @@ export default function ApplicationDetail() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {format(new Date(entry.timestamp), "MMM d, yyyy · h:mm a")}
+                          {format(
+                            new Date(entry.timestamp),
+                            "MMM d, yyyy · h:mm a",
+                          )}
                         </p>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <UserIcon className="w-3 h-3 shrink-0" />

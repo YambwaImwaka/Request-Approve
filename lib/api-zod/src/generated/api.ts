@@ -57,12 +57,17 @@ export const ListApplicationsQueryParams = zod.object({
 
 export const ListApplicationsResponseItem = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -82,6 +87,7 @@ export const ListApplicationsResponse = zod.array(ListApplicationsResponseItem)
 
 
 
+
 export const createApplicationBodyOwnershipPercentageMin = 0;
 export const createApplicationBodyOwnershipPercentageMax = 100;
 
@@ -89,12 +95,17 @@ export const createApplicationBodyOwnershipPercentageMax = 100;
 
 
 export const CreateApplicationBody = zod.object({
+  "title": zod.string().min(1),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string().min(1),
   "registrationNumber": zod.string().min(1),
   "beneficialOwnerName": zod.string().min(1),
   "ownershipPercentage": zod.number().min(createApplicationBodyOwnershipPercentageMin).max(createApplicationBodyOwnershipPercentageMax),
+  "effectiveDate": zod.coerce.date().optional(),
   "changeReason": zod.string().min(1),
-  "supportingNotes": zod.string().optional()
+  "supportingNotes": zod.string().optional(),
+  "attachmentName": zod.string().optional(),
+  "attachmentUrl": zod.string().optional()
 })
 
 
@@ -107,12 +118,17 @@ export const GetApplicationParams = zod.object({
 
 export const GetApplicationResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -141,11 +157,12 @@ export const GetApplicationResponse = zod.object({
 
 
 /**
- * @summary Update a DRAFT application (owner only)
+ * @summary Update a DRAFT or CHANGES_REQUESTED application (owner only)
  */
 export const UpdateApplicationParams = zod.object({
   "id": zod.coerce.number()
 })
+
 
 
 
@@ -157,22 +174,32 @@ export const updateApplicationBodyOwnershipPercentageMax = 100;
 
 
 export const UpdateApplicationBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']).optional(),
   "companyName": zod.string().min(1).optional(),
   "registrationNumber": zod.string().min(1).optional(),
   "beneficialOwnerName": zod.string().min(1).optional(),
   "ownershipPercentage": zod.number().min(updateApplicationBodyOwnershipPercentageMin).max(updateApplicationBodyOwnershipPercentageMax).optional(),
+  "effectiveDate": zod.coerce.date().optional(),
   "changeReason": zod.string().min(1).optional(),
-  "supportingNotes": zod.string().optional()
+  "supportingNotes": zod.string().optional(),
+  "attachmentName": zod.string().optional(),
+  "attachmentUrl": zod.string().optional()
 })
 
 export const UpdateApplicationResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -194,12 +221,17 @@ export const SubmitApplicationParams = zod.object({
 
 export const SubmitApplicationResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -221,12 +253,17 @@ export const StartReviewParams = zod.object({
 
 export const StartReviewResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -252,12 +289,17 @@ export const ApproveApplicationBody = zod.object({
 
 export const ApproveApplicationResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -286,12 +328,17 @@ export const RejectApplicationBody = zod.object({
 
 export const RejectApplicationResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
@@ -320,12 +367,17 @@ export const RequestChangesBody = zod.object({
 
 export const RequestChangesResponse = zod.object({
   "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.enum(['OWNERSHIP_TRANSFER', 'PERCENTAGE_CHANGE', 'NEW_BENEFICIAL_OWNER', 'REMOVAL_OF_BENEFICIAL_OWNER', 'CORRECTION_AMENDMENT']),
   "companyName": zod.string(),
   "registrationNumber": zod.string(),
   "beneficialOwnerName": zod.string(),
   "ownershipPercentage": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
   "changeReason": zod.string(),
   "supportingNotes": zod.string().nullish(),
+  "attachmentName": zod.string().nullish(),
+  "attachmentUrl": zod.string().nullish(),
   "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED']),
   "userId": zod.number(),
   "createdAt": zod.coerce.date(),
