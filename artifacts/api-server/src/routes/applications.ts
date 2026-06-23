@@ -189,14 +189,18 @@ router.patch("/applications/:id", requireAuth, async (req: Request, res: Respons
     return;
   }
 
-  if (app.status !== "DRAFT") {
-    res.status(403).json({ success: false, message: "Only DRAFT applications can be edited" });
+  if (app.status !== "DRAFT" && app.status !== "CHANGES_REQUESTED") {
+    res.status(403).json({ success: false, message: "Only DRAFT or CHANGES_REQUESTED applications can be edited" });
     return;
   }
 
+  const isChangesRequested = app.status === "CHANGES_REQUESTED";
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.ownershipPercentage !== undefined) {
     updateData.ownershipPercentage = String(parsed.data.ownershipPercentage);
+  }
+  if (isChangesRequested) {
+    updateData.status = "DRAFT";
   }
 
   const [updated] = await db
@@ -204,6 +208,18 @@ router.patch("/applications/:id", requireAuth, async (req: Request, res: Respons
     .set(updateData)
     .where(eq(applicationsTable.id, params.data.id))
     .returning();
+
+  if (isChangesRequested) {
+    await db.insert(auditLogsTable).values({
+      applicationId: params.data.id,
+      userId: req.user!.userId,
+      userRole: req.user!.role as string,
+      previousStatus: "CHANGES_REQUESTED",
+      newStatus: "DRAFT",
+      comment: "Applicant updated the application after changes were requested.",
+      timestamp: new Date(),
+    });
+  }
 
   res.json(await serializeApplication(updated));
 });

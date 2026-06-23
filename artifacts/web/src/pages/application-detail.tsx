@@ -311,7 +311,7 @@ export default function ApplicationDetail() {
               <Button
                 onClick={handleApprove}
                 disabled={isWorking}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 min-w-[110px]"
               >
                 {(approveMutation.isPending || pendingAction === "Approving") ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -323,9 +323,9 @@ export default function ApplicationDetail() {
 
               <Button
                 onClick={handleRequestChanges}
-                disabled={isWorking || !comment.trim()}
+                disabled={isWorking}
                 variant="outline"
-                className="border-orange-300 text-orange-700 hover:bg-orange-50 gap-2"
+                className="border-orange-400 text-orange-700 hover:bg-orange-50 gap-2 min-w-[160px]"
               >
                 {(requestChangesMutation.isPending || pendingAction === "Requesting changes") ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -337,9 +337,9 @@ export default function ApplicationDetail() {
 
               <Button
                 onClick={handleReject}
-                disabled={isWorking || !comment.trim()}
+                disabled={isWorking}
                 variant="outline"
-                className="border-red-300 text-red-700 hover:bg-red-50 gap-2"
+                className="border-red-400 text-red-700 hover:bg-red-50 gap-2 min-w-[100px]"
               >
                 {(rejectMutation.isPending || pendingAction === "Rejecting") ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -350,11 +350,9 @@ export default function ApplicationDetail() {
               </Button>
             </div>
 
-            {!comment.trim() && (
-              <p className="text-xs text-muted-foreground">
-                Type a comment above to enable Reject and Request Changes.
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Approve does not require a comment. Reject and Request Changes require one.
+            </p>
           </CardContent>
         </Card>
       )}
